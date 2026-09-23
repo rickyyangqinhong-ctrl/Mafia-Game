@@ -21,28 +21,6 @@ A multiplayer browser-based Mafia game built with **HTML, CSS, JavaScript, Node.
 * Express
 * Socket.IO
 
-## 🚀 Run Locally
-
-### 1. Install dependencies
-
-```bash
-npm install
-```
-
-### 2. Start the server
-
-```bash
-node server.js
-```
-
-### 3. Open the game
-
-Go to:
-
-```text
-http://localhost:3000
-```
-
 ## 📁 Project Structure
 
 ```text
