@@ -137,3 +137,16 @@ input[type="text"]::placeholder { color: #6B6156; }
 .reveal-title { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-muted); margin: 14px 0 8px; }
 .reveal-row { display: flex; justify-content: space-between; padding: 6px 8px; background: var(--panel-raised); border-radius: 3px; margin-bottom: 4px; font-size: 13px; }
 .reveal-row.dead { opacity: 0.55; }
+
+/* --- additions --- */
+:root { --alien: #6FB3A0; }
+.timer { font-family: var(--display); color: var(--accent-bright); font-size: 16px; min-width: 70px; text-align: center; }
+.player-row { justify-content: space-between; }
+.ban-btn { background: transparent; border: 1px solid var(--hairline); color: var(--ink-muted); border-radius: 3px; width: 24px; height: 24px; line-height: 1; cursor: pointer; font-size: 12px; padding: 0; flex-shrink: 0; }
+.ban-btn:hover { border-color: var(--accent-bright); color: var(--accent-bright); }
+.chat-event { color: #E0B44C; font-weight: 600; border-left: 3px solid #E0B44C; padding-left: 8px; }
+.mafia-chat-panel { border-color: var(--mafia); }
+.secret-tag { font-family: var(--body); font-size: 10px; color: var(--ink-muted); font-weight: 400; margin-left: 8px; }
+.role-card.faction-alien { border-left-color: var(--alien); }
+.guide-alien { border-left-color: var(--alien); } .guide-alien h3 { color: var(--alien); }
+.dead-notice { margin-top: 12px; font-size: 13px; color: var(--ink-muted); font-style: italic; }
