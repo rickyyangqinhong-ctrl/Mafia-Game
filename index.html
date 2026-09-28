@@ -14,69 +14,50 @@
 
 <div id="menu" class="screen">
     <div class="menu-card">
-
         <h1 class="brand">MAFIA</h1>
         <p class="tagline">a game of deception, deduction &amp; one very quiet night (beta)</p>
 
         <label class="field-label" for="nameInput">Your name</label>
         <input id="nameInput" type="text" maxlength="16" placeholder="e.g. Rosa" autocomplete="off">
-
         <button class="btn btn-primary" onclick="createRoom()">Create a room</button>
 
         <div class="divider"><span>or join one</span></div>
-
         <div class="join-row">
             <input id="roomInput" type="text" maxlength="4" placeholder="ROOM CODE" autocomplete="off">
             <button class="btn btn-secondary" onclick="joinRoom()">Join</button>
         </div>
 
         <details class="role-guide">
-            <summary>📖 Role guide &amp; how locations work</summary>
-
-            <p class="guide-note">🌆 Locations: Hospital, Park, Shop, Police Station, Docks, Bank. Every night your role sends you (or lets you choose) a location. During the day, non-Mafia players pick 🗳️ Vote or 🔍 Investigate — investigating a location reveals real clues about who was seen there.</p>
-
-            <div class="guide-faction guide-mafia">
-                <h3>Mafia</h3>
-                <p><strong>🕴️ Godfather</strong> — picks the kill target and where it happens.</p>
-                <p><strong>🕵️ Consigliere</strong> — learns a player's exact role each night.</p>
-                <p><strong>🔪 Mafia</strong> — backs up the kill, or sabotages a location to hide evidence there.</p>
-            </div>
-
-            <div class="guide-faction guide-innocent">
-                <h3>Innocent</h3>
-                <p><strong>👤 Villager</strong> — visits a location each night; no other power.</p>
-                <p><strong>💉 Doctor</strong> — saves one person from the night's attack.</p>
-                <p><strong>🔎 Detective</strong> — learns if a player is suspicious.</p>
-                <p><strong>🛡️ Bodyguard</strong> — dies in place of whoever they guard.</p>
-                <p><strong>📹 Guard</strong> — checks a location's camera footage for visitors.</p>
-                <p><strong>🕵️‍♂️ Tracker</strong> — follows a player to see where they went, even if cameras are down.</p>
-            </div>
-
-            <div class="guide-faction guide-neutral">
-                <h3>Neutral</h3>
-                <p><strong>🃏 Jester</strong> — wins alone if voted out by the town.</p>
-                <p><strong>🔪 Serial Killer</strong> — kills alone; wins by being the last one standing.</p>
-                <p><strong>🌿 Survivor</strong> — no team; just needs to make it to the end.</p>
-            </div>
-
-            <p class="guide-note">The exact mix depends on player count — bigger games unlock more roles.</p>
+            <summary>📖 Role guide</summary>
+            <div class="guide-faction guide-mafia"><h3>Mafia</h3>
+                <p><strong>🕴️ Godfather</strong> — picks the nightly kill; looks innocent to Detectives.</p>
+                <p><strong>🕵️ Consigliere</strong> — learns a player's exact role.</p>
+                <p><strong>🔪 Mafia</strong> — takes over the kill if the Godfather dies.</p></div>
+            <div class="guide-faction guide-innocent"><h3>Innocent</h3>
+                <p><strong>👤 Villager</strong> — no power.</p>
+                <p><strong>💉 Doctor</strong> — protects one player each night.</p>
+                <p><strong>🔎 Detective</strong> — checks if someone is suspicious.</p>
+                <p><strong>🛡️ Bodyguard</strong> — dies in place of who they guard.</p></div>
+            <div class="guide-faction guide-neutral"><h3>Neutral</h3>
+                <p><strong>🃏 Jester</strong> — wins if voted out.</p>
+                <p><strong>🔪 Serial Killer</strong> — last one standing wins.</p>
+                <p><strong>🌿 Survivor</strong> — just stay alive.</p></div>
+            <div class="guide-faction guide-alien"><h3>Alien</h3>
+                <p><strong>👽 Alien</strong> — abducts (kills) each night. Once per game, the whole team can Convert a player instead.</p></div>
+            <p class="guide-note">🌅 Some mornings a random event happens: rumors, tips, curfews, fire alarms and more.</p>
         </details>
-
     </div>
 </div>
 
-
 <div id="lobby" class="screen" style="display: none;">
-
     <header class="topbar">
         <div class="room-tag">ROOM <span id="roomCode"></span></div>
+        <div id="timer" class="timer"></div>
         <div id="playerCount" class="player-count"></div>
     </header>
 
     <div class="game-grid">
-
         <div class="left-column">
-
             <section class="panel">
                 <h2 class="panel-title">Players</h2>
                 <div id="players" class="players-list"></div>
@@ -86,12 +67,21 @@
                 <h2 class="panel-title">Chat</h2>
                 <div id="chatLog" class="chat-log"></div>
                 <div class="chat-input-row">
-                    <input id="chatInput" type="text" maxlength="240" placeholder="Type a message..." autocomplete="off" disabled>
+                    <input id="chatInput" type="text" maxlength="240" placeholder="Type a message..." autocomplete="off">
                     <button class="btn btn-secondary btn-small" onclick="sendChat()">Send</button>
                 </div>
                 <div id="chatCounter" class="chat-counter">0 / 240</div>
             </section>
 
+            <section id="mafiaPanel" class="panel chat-panel mafia-chat-panel" style="display: none;">
+                <h2 class="panel-title">Mafia chat <span class="secret-tag">only Mafia can see this</span></h2>
+                <div id="mafiaLog" class="chat-log"></div>
+                <div class="chat-input-row">
+                    <input id="mafiaInput" type="text" maxlength="240" placeholder="Whisper to the Mafia..." autocomplete="off">
+                    <button class="btn btn-secondary btn-small" onclick="sendMafiaChat()">Send</button>
+                </div>
+                <div id="mafiaCounter" class="chat-counter">0 / 240</div>
+            </section>
         </div>
 
         <div class="right-column">
@@ -101,9 +91,7 @@
                 <button id="startButton" class="btn btn-primary" style="display: none;" onclick="startGame()">Start Game</button>
             </section>
         </div>
-
     </div>
-
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
