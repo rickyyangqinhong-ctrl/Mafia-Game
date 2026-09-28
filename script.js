@@ -1,108 +1,100 @@
 const socket = io();
 
-let myRole = null;
-let currentHostId = null;
-
 const MAX_CHAT_LEN = 240;
 
-const menu = document.getElementById("menu");
-const lobby = document.getElementById("lobby");
-const nameInput = document.getElementById("nameInput");
-const roomInput = document.getElementById("roomInput");
-const roomCode = document.getElementById("roomCode");
-const playerCount = document.getElementById("playerCount");
-const playersDiv = document.getElementById("players");
-const chatLog = document.getElementById("chatLog");
-const chatInput = document.getElementById("chatInput");
-const chatCounter = document.getElementById("chatCounter");
-const roleDiv = document.getElementById("role");
-const startButton = document.getElementById("startButton");
+let myRole = null;
+let myName = "";
+let hostId = null;
+let amDead = false;
+let lastPlayers = [];
+let timerInterval = null;
 
+const $ = function(id) { return document.getElementById(id); };
+const menu = $("menu"), lobby = $("lobby"), nameInput = $("nameInput"), roomInput = $("roomInput");
+const chatLog = $("chatLog"), chatInput = $("chatInput"), chatCounter = $("chatCounter");
+const mafiaPanel = $("mafiaPanel"), mafiaLog = $("mafiaLog"), mafiaInput = $("mafiaInput"), mafiaCounter = $("mafiaCounter");
+const roleDiv = $("role"), startButton = $("startButton"), playersDiv = $("players"), timerDiv = $("timer");
+
+// ---------- screens / setup ----------
 function showLobby(code) {
     menu.style.display = "none";
     lobby.style.display = "block";
-    roomCode.textContent = code;
+    $("roomCode").textContent = code;
     roleDiv.innerHTML = "";
-    chatInput.disabled = false;
-    chatInput.placeholder = "Type a message...";
-    startButton.style.display = "none";
+    setChat(true);
 }
 
 function createRoom() {
     const name = nameInput.value.trim();
     if (!name) { alert("Enter your name."); return; }
+    myName = name.slice(0, 16);
     socket.emit("createRoom", name);
 }
 
 function joinRoom() {
-    const name = nameInput.value.trim();
-    const code = roomInput.value.trim().toUpperCase();
+    const name = nameInput.value.trim(), code = roomInput.value.trim().toUpperCase();
     if (!name) { alert("Enter your name."); return; }
     if (!code) { alert("Enter a room code."); return; }
+    myName = name.slice(0, 16);
     socket.emit("joinRoom", { code: code, name: name });
 }
 
 function startGame() { socket.emit("startGame"); }
+function banPlayer(name) { if (confirm("Ban " + name + " from this room?")) socket.emit("banPlayer", name); }
+
+// ---------- chat ----------
+function setChat(open, placeholder) {
+    const on = open && !amDead;
+    chatInput.disabled = !on;
+    chatInput.placeholder = on ? "Type a message..." : (amDead ? "You are eliminated 💀" : (placeholder || "Chat is closed 🌙"));
+}
 
 function sendChat() {
-    const text = chatInput.value.trim();
-    if (!text || chatInput.disabled) return;
-    socket.emit("chat", text.slice(0, MAX_CHAT_LEN));
+    const t = chatInput.value.trim();
+    if (!t || chatInput.disabled) return;
+    socket.emit("chat", t.slice(0, MAX_CHAT_LEN));
     chatInput.value = "";
-    updateChatCounter();
+    counter(chatInput, chatCounter);
 }
 
-function updateChatCounter() {
-    if (!chatCounter) return;
-    chatCounter.textContent = chatInput.value.length + " / " + MAX_CHAT_LEN;
+function sendMafiaChat() {
+    const t = mafiaInput.value.trim();
+    if (!t) return;
+    socket.emit("mafiaChat", t.slice(0, MAX_CHAT_LEN));
+    mafiaInput.value = "";
+    counter(mafiaInput, mafiaCounter);
 }
 
-function addMessage(message, className) {
-    const div = document.createElement("div");
-    div.className = className || "chat-system";
-    div.textContent = message;
-    chatLog.appendChild(div);
-    chatLog.scrollTop = chatLog.scrollHeight;
+function counter(input, el) { el.textContent = input.value.length + " / " + MAX_CHAT_LEN; }
+
+function addLine(log, text, cls) {
+    const d = document.createElement("div");
+    if (cls) d.className = cls;
+    d.textContent = text;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
 }
 
-function addChat(name, text) {
-    const div = document.createElement("div");
-    div.textContent = name + ": " + text;
-    chatLog.appendChild(div);
-    chatLog.scrollTop = chatLog.scrollHeight;
-}
-
-function clearActionArea() { roleDiv.innerHTML = ""; }
-
-function factionClass(faction) {
-    if (faction === "Mafia") return "faction-mafia";
-    if (faction === "Innocent") return "faction-innocent";
-    return "faction-neutral";
+// ---------- action panel ----------
+function factionClass(f) {
+    return { Mafia: "faction-mafia", Innocent: "faction-innocent", Alien: "faction-alien" }[f] || "faction-neutral";
 }
 
 function renderRoleCard() {
     if (!myRole) return;
     const card = document.createElement("div");
     card.className = "role-card " + factionClass(myRole.faction);
-
-    const name = document.createElement("div");
-    name.className = "role-name";
-    name.textContent = myRole.label;
-
-    const faction = document.createElement("div");
-    faction.className = "role-faction";
-    faction.textContent = myRole.faction + " faction";
-
-    const desc = document.createElement("div");
-    desc.className = "role-desc";
-    desc.textContent = myRole.description;
-
-    card.appendChild(name); card.appendChild(faction); card.appendChild(desc);
+    [["role-name", myRole.label], ["role-faction", myRole.faction + " faction"], ["role-desc", myRole.description]].forEach(function(r) {
+        const d = document.createElement("div");
+        d.className = r[0];
+        d.textContent = r[1];
+        card.appendChild(d);
+    });
     roleDiv.appendChild(card);
 }
 
 function showWaiting(text) {
-    clearActionArea();
+    roleDiv.innerHTML = "";
     renderRoleCard();
     const m = document.createElement("div");
     m.className = "waiting-text";
@@ -110,163 +102,152 @@ function showWaiting(text) {
     roleDiv.appendChild(m);
 }
 
-function showRole() { clearActionArea(); renderRoleCard(); }
-
-function renderButtonList(title, options, onPick) {
-    clearActionArea();
+function renderButtons(title, options, onPick) {
+    roleDiv.innerHTML = "";
     renderRoleCard();
     const t = document.createElement("div");
     t.className = "action-title";
     t.textContent = title;
     roleDiv.appendChild(t);
-    options.forEach(function(opt) {
-        const btn = document.createElement("button");
-        btn.className = "action-btn";
-        btn.textContent = opt;
-        btn.onclick = function() { onPick(opt); };
-        roleDiv.appendChild(btn);
+    options.forEach(function(o) {
+        const b = document.createElement("button");
+        b.className = "action-btn";
+        b.textContent = o;
+        b.onclick = function() { onPick(o); };
+        roleDiv.appendChild(b);
     });
 }
 
-socket.on("roomCreated", function(code) { showLobby(code); });
-socket.on("joinedRoom", function(code) { showLobby(code); });
-
-socket.on("players", function(players) {
+function renderPlayers() {
     playersDiv.innerHTML = "";
-    players.forEach(function(p) {
-        const div = document.createElement("div");
-        div.className = "player-row" + (p.alive ? "" : " dead");
-        div.textContent = (p.alive ? "🟢 " : "💀 ") + p.name;
-        playersDiv.appendChild(div);
+    const amHost = hostId === socket.id;
+    lastPlayers.forEach(function(p) {
+        const row = document.createElement("div");
+        row.className = "player-row" + (p.alive ? "" : " dead");
+        const label = document.createElement("span");
+        label.textContent = (p.alive ? "🟢 " : "💀 ") + p.name;
+        row.appendChild(label);
+        if (amHost && p.name !== myName) {
+            const b = document.createElement("button");
+            b.className = "ban-btn";
+            b.textContent = "✕";
+            b.title = "Ban " + p.name;
+            b.onclick = function() { banPlayer(p.name); };
+            row.appendChild(b);
+        }
+        playersDiv.appendChild(row);
     });
-    const suffix = players.length === 1 ? "player" : "players";
-    playerCount.textContent = players.length + " " + suffix;
-});
+    $("playerCount").textContent = lastPlayers.length + (lastPlayers.length === 1 ? " player" : " players");
+}
 
-socket.on("host", function(hostId) {
-    currentHostId = hostId;
-    if (hostId === socket.id) {
-        startButton.style.display = "inline-block";
-        startButton.disabled = false;
-        startButton.textContent = "Start Game";
-    } else {
-        startButton.style.display = "none";
-    }
+// ---------- socket events ----------
+socket.on("roomCreated", showLobby);
+socket.on("joinedRoom", showLobby);
+
+socket.on("players", function(list) { lastPlayers = list; renderPlayers(); });
+
+socket.on("host", function(id) {
+    hostId = id;
+    renderPlayers();
+    startButton.style.display = id === socket.id ? "inline-block" : "none";
+    startButton.textContent = "Start Game";
 });
 
 socket.on("gameStarted", function() { startButton.style.display = "none"; });
 
-socket.on("role", function(role) { myRole = role; showRole(); });
+socket.on("role", function(role) {
+    myRole = role;
+    roleDiv.innerHTML = "";
+    renderRoleCard();
+    mafiaPanel.style.display = role.faction === "Mafia" ? "block" : "none";
+});
 
 socket.on("gameReset", function() {
-    chatInput.disabled = true;
-    chatInput.placeholder = "Chat is disabled at night 🌙";
-    showRole();
+    amDead = false;
+    mafiaLog.innerHTML = "";
+    setChat(false);
 });
 
-socket.on("message", function(message) {
-    addMessage(message);
-    if (message.indexOf("NIGHT") !== -1) {
-        chatInput.disabled = true;
-        chatInput.placeholder = "Chat is disabled at night 🌙";
-    }
-    if (message.indexOf("DAY") !== -1) {
-        chatInput.disabled = false;
-        chatInput.placeholder = "Type a message...";
-    }
-});
+socket.on("phase", function(d) { setChat(d.chatOpen, d.phase === "day" ? "🚨 Chat is closed today" : "Chat is closed at night 🌙"); });
 
-socket.on("chat", function(data) { addChat(data.name, data.text); });
-socket.on("errorMessage", function(message) { alert(message); });
+socket.on("message", function(m) { addLine(chatLog, m, "chat-system"); });
+socket.on("morningEvent", function(m) { addLine(chatLog, "🌅 MORNING EVENT: " + m, "chat-event"); });
+socket.on("chat", function(d) { addLine(chatLog, d.name + ": " + d.text); });
+socket.on("mafiaChat", function(d) { addLine(mafiaLog, d.name + ": " + d.text); });
+socket.on("investigateResult", function(d) { addLine(chatLog, d.result, "chat-clue"); });
+socket.on("errorMessage", function(m) { alert(m); });
 
-// Generic night action prompt (kill/sabotage/camera/track/visit/heal/guard/investigate)
-socket.on("nightAction", function(data) {
-    renderButtonList(data.title, data.players, function(pick) {
-        showWaiting("⏳ Waiting for the night to finish...");
-        socket.emit("nightAction", { type: data.type, target: pick });
+socket.on("nightAction", function(d) {
+    renderButtons(d.title, d.players, function(pick) {
+        showWaiting("⏳ Waiting...");
+        socket.emit("nightAction", { type: d.type, target: pick });
     });
 });
 
-socket.on("investigateResult", function(data) {
-    addMessage(data.result, "chat-clue");
-});
-
-// Day: choose Vote or Investigate
-socket.on("dayChoice", function() {
-    clearActionArea();
-    renderRoleCard();
-    const t = document.createElement("div");
-    t.className = "action-title";
-    t.textContent = "🌞 What will you do today?";
-    roleDiv.appendChild(t);
-
-    const voteBtn = document.createElement("button");
-    voteBtn.className = "action-btn";
-    voteBtn.textContent = "🗳️ Vote";
-    voteBtn.onclick = function() { socket.emit("dayChoice", { choice: "vote" }); };
-
-    const investigateBtn = document.createElement("button");
-    investigateBtn.className = "action-btn";
-    investigateBtn.textContent = "🔍 Investigate a location";
-    investigateBtn.onclick = function() { socket.emit("dayChoice", { choice: "investigate" }); };
-
-    roleDiv.appendChild(voteBtn);
-    roleDiv.appendChild(investigateBtn);
-});
-
-socket.on("locationOptions", function(data) {
-    renderButtonList(data.title, data.locations, function(pick) {
-        showWaiting("⏳ Waiting for everyone to finish...");
-        socket.emit("investigateChoice", pick);
-    });
-});
-
-socket.on("voteOptions", function(data) {
-    renderButtonList("🌞 Vote for someone to eliminate:", data.players, function(pick) {
+socket.on("voteOptions", function(d) {
+    renderButtons("🌞 Vote for someone to eliminate:", d.players, function(pick) {
         showWaiting("⏳ Vote submitted. Waiting for everyone...");
         socket.emit("vote", pick);
     });
 });
 
-socket.on("waiting", function(message) { showWaiting(message); });
+socket.on("waiting", showWaiting);
 
-socket.on("gameEnded", function(data) {
-    clearActionArea();
-    chatInput.disabled = false;
-    chatInput.placeholder = "Game ended. Chat is open.";
-
-    const banner = document.createElement("div");
-    banner.className = "end-banner";
-    if (data.winner === "Mafia") banner.textContent = "🔪 MAFIA WINS!";
-    else if (data.winner === "Town") banner.textContent = "👤 TOWN WINS!";
-    else if (data.winner === "SerialKiller") banner.textContent = "🔪 " + data.soloWinner + " (Serial Killer) WINS!";
-    else if (data.winner === "Jester") banner.textContent = "🃏 " + data.soloWinner + " (Jester) WINS!";
-    else banner.textContent = "Game over.";
-    roleDiv.appendChild(banner);
-
-    const revealTitle = document.createElement("div");
-    revealTitle.className = "reveal-title";
-    revealTitle.textContent = "Roles revealed";
-    roleDiv.appendChild(revealTitle);
-
-    data.players.forEach(function(p) {
-        const row = document.createElement("div");
-        row.className = "reveal-row" + (p.alive ? "" : " dead");
-        const left = document.createElement("span"); left.textContent = p.name;
-        const right = document.createElement("span"); right.textContent = p.label;
-        row.appendChild(left); row.appendChild(right);
-        roleDiv.appendChild(row);
-    });
-
-    if (socket.id === currentHostId) {
-        startButton.style.display = "inline-block";
-        startButton.disabled = false;
-        startButton.textContent = "Play Again";
-    } else {
-        startButton.style.display = "none";
-    }
+socket.on("eliminated", function() {
+    amDead = true;
+    setChat(false);
+    roleDiv.innerHTML = "";
+    renderRoleCard();
+    const n = document.createElement("div");
+    n.className = "dead-notice";
+    n.textContent = "💀 You have been eliminated. You can keep watching, but you can no longer act.";
+    roleDiv.appendChild(n);
 });
 
-chatInput.addEventListener("input", updateChatCounter);
+socket.on("banned", function() {
+    alert("You were banned from this room by the host.");
+    location.reload();
+});
+
+socket.on("timer", function(sec) {
+    clearInterval(timerInterval);
+    if (!sec) { timerDiv.textContent = ""; return; }
+    let left = sec;
+    timerDiv.textContent = "⏱️ " + left + "s";
+    timerInterval = setInterval(function() {
+        left--;
+        timerDiv.textContent = left > 0 ? "⏱️ " + left + "s" : "";
+        if (left <= 0) clearInterval(timerInterval);
+    }, 1000);
+});
+
+socket.on("gameEnded", function(d) {
+    amDead = false;
+    setChat(true);
+    roleDiv.innerHTML = "";
+    const b = document.createElement("div");
+    b.className = "end-banner";
+    b.textContent = { Mafia: "🔪 MAFIA WINS!", Town: "👤 TOWN WINS!", Alien: "👽 ALIENS WIN!", Nobody: "💀 NOBODY WINS" }[d.winner]
+        || (d.winner === "SerialKiller" ? "🔪 " + d.soloWinner + " (Serial Killer) WINS!" : d.winner === "Jester" ? "🃏 " + d.soloWinner + " (Jester) WINS!" : "Game over.");
+    roleDiv.appendChild(b);
+
+    const t = document.createElement("div");
+    t.className = "reveal-title";
+    t.textContent = "Roles revealed";
+    roleDiv.appendChild(t);
+    d.players.forEach(function(p) {
+        const r = document.createElement("div");
+        r.className = "reveal-row" + (p.alive ? "" : " dead");
+        const a = document.createElement("span"); a.textContent = p.name;
+        const c = document.createElement("span"); c.textContent = p.label;
+        r.appendChild(a); r.appendChild(c);
+        roleDiv.appendChild(r);
+    });
+
+    if (hostId === socket.id) { startButton.style.display = "inline-block"; startButton.textContent = "Play Again"; }
+});
+
+chatInput.addEventListener("input", function() { counter(chatInput, chatCounter); });
 chatInput.addEventListener("keydown", function(e) { if (e.key === "Enter") sendChat(); });
-updateChatCounter();
+mafiaInput.addEventListener("input", function() { counter(mafiaInput, mafiaCounter); });
+mafiaInput.addEventListener("keydown", function(e) { if (e.key === "Enter") sendMafiaChat(); });
